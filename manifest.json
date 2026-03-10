@@ -49,7 +49,35 @@
       "required": false
     }
   },
-  "tools": [],
+  "tools": [
+    { "name": "read_note", "description": "Read the content of a note including frontmatter" },
+    { "name": "read_multiple_notes", "description": "Read multiple notes at once" },
+    { "name": "write_note", "description": "Create or overwrite a note with content and optional frontmatter" },
+    { "name": "patch_note", "description": "Find and replace text in a note" },
+    { "name": "insert_at", "description": "Insert content at a specific heading or block ID" },
+    { "name": "delete_note", "description": "Delete a note (requires confirmation)" },
+    { "name": "move_note", "description": "Move/rename a note" },
+    { "name": "move_file", "description": "Move/rename any file (requires double confirmation)" },
+    { "name": "search_vault", "description": "Search notes with BM25 ranking" },
+    { "name": "query_notes", "description": "Query notes by frontmatter using dataview syntax" },
+    { "name": "get_frontmatter", "description": "Get YAML frontmatter of a note" },
+    { "name": "update_frontmatter", "description": "Update frontmatter fields" },
+    { "name": "manage_tags", "description": "Add, remove, or list tags" },
+    { "name": "get_notes_info", "description": "Get metadata for one or more notes" },
+    { "name": "list_directory", "description": "List files and folders in a directory" },
+    { "name": "manage_folder", "description": "Create, rename, or delete a folder" },
+    { "name": "get_vault_stats", "description": "Get vault statistics" },
+    { "name": "get_vault_structure", "description": "Get recursive directory tree" },
+    { "name": "get_backlinks", "description": "Get notes that link to a given note" },
+    { "name": "get_outgoing_links", "description": "Get notes that a given note links to" },
+    { "name": "find_orphan_notes", "description": "Find notes with no links" },
+    { "name": "auto_backlink", "description": "Find and convert note name mentions to wikilinks" },
+    { "name": "create_from_template", "description": "Create a note from a template" },
+    { "name": "list_attachments", "description": "List non-markdown attachments" },
+    { "name": "get_attachment_info", "description": "Get attachment metadata and referencing notes" },
+    { "name": "get_active_note", "description": "Get currently active note (requires REST API)" },
+    { "name": "get_periodic_note", "description": "Get periodic note (requires REST API)" }
+  ],
   "compatibility": {
     "platforms": ["win32", "darwin", "linux"]
   }
