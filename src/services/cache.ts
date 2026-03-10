@@ -29,6 +29,7 @@ export class CacheService {
         () => this.refresh(),
         this.refreshIntervalMinutes * 60 * 1000,
       );
+      this.refreshTimer.unref();
     }
   }
 

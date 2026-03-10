@@ -218,7 +218,7 @@ test("patch note fails with empty oldString", async () => {
   expect(result.message).toMatch(/empty|filled|required/i);
 });
 
-test("patch note fails with empty newString", async () => {
+test("patch note with empty newString deletes matched text", async () => {
   const testPath = "test-note.md";
   const content = "# Test Note\n\nSome content.";
 
@@ -231,8 +231,9 @@ test("patch note fails with empty newString", async () => {
     replaceAll: false
   });
 
-  expect(result.success).toBe(false);
-  expect(result.message).toMatch(/empty|filled|required/i);
+  expect(result.success).toBe(true);
+  const note = await fileSystem.readNote(testPath);
+  expect(note.content).toContain("Some .");
 });
 
 test("patch note fails with undefined newString", async () => {

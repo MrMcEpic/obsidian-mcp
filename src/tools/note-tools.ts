@@ -170,7 +170,7 @@ export const handlers: Record<string, ToolHandler> = {
       return success({ path, message: 'Patched successfully' });
     }
 
-    const result = await ctx.vaultAccess.patchNote({ path, oldString, newString, replaceAll: replaceAll ?? true });
+    const result = await ctx.vaultAccess.patchNote({ path, oldString, newString, replaceAll: replaceAll ?? false });
     if (!result.success) return error(result.message);
 
     const note = await ctx.vaultAccess.readNote(path);

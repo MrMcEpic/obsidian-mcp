@@ -51,13 +51,25 @@ export const handlers: Record<string, ToolHandler> = {
     }
 
     const searchDir = pathArg ? join(ctx.vaultPath, pathArg) : ctx.vaultPath;
+    // Validate path is within vault
+    const normalizedDir = searchDir.replace(/\\/g, '/');
+    const normalizedVault = ctx.vaultPath.replace(/\\/g, '/');
+    if (!normalizedDir.startsWith(normalizedVault + '/') && normalizedDir !== normalizedVault) {
+      return { content: [{ type: 'text', text: `Path traversal not allowed: ${pathArg}` }], isError: true };
+    }
     const attachments = await findAttachments(searchDir, ctx.vaultPath, extensions);
     return success({ attachments, count: attachments.length });
   },
 
   async get_attachment_info(args, ctx) {
     const { path: filePath } = args as { path: string };
+    // Validate path is within vault
     const fullPath = join(ctx.vaultPath, filePath);
+    const normalizedFull = fullPath.replace(/\\/g, '/');
+    const normalizedVault = ctx.vaultPath.replace(/\\/g, '/');
+    if (!normalizedFull.startsWith(normalizedVault + '/')) {
+      return { content: [{ type: 'text', text: `Path traversal not allowed: ${filePath}` }], isError: true };
+    }
     const fileStat = await stat(fullPath);
 
     await ctx.cacheService.waitForBuild();

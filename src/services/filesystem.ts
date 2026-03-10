@@ -37,8 +37,11 @@ export class FileSystemService {
     const fullPath = resolve(join(this.vaultPath, normalizedPath));
 
     // Security check: ensure path is within vault
+    const normalizedFull = fullPath.replace(/\\/g, '/');
+    const normalizedVault = this.vaultPath.replace(/\\/g, '/');
     const relativeToVault = relative(this.vaultPath, fullPath);
-    if (relativeToVault.startsWith('..')) {
+    if (relativeToVault.startsWith('..') ||
+        (!normalizedFull.startsWith(normalizedVault + '/') && normalizedFull !== normalizedVault)) {
       throw new Error(`Path traversal not allowed: ${relativePath}. Paths must be within the vault directory.`);
     }
 
@@ -102,39 +105,32 @@ export class FileSystemService {
       let finalContent: string;
 
       if (mode === 'overwrite') {
-        // Original behavior - replace entire content
         finalContent = frontmatter
           ? this.frontmatterHandler.stringify(frontmatter, content)
           : content;
       } else {
-        // For append/prepend, we need to read existing content
-        let existingNote: ParsedNote;
+        // For append/prepend, read existing content (or treat as overwrite if file doesn't exist)
+        let existingNote: ParsedNote | undefined;
         try {
           existingNote = await this.readNote(path);
-        } catch (error) {
-          // File doesn't exist, treat as overwrite
-          finalContent = frontmatter
-            ? this.frontmatterHandler.stringify(frontmatter, content)
-            : content;
+        } catch {
+          // File doesn't exist — fall through to overwrite
         }
 
-        if (existingNote!) {
-          // Merge frontmatter if provided
+        if (existingNote) {
           const mergedFrontmatter = frontmatter
             ? { ...existingNote.frontmatter, ...frontmatter }
             : existingNote.frontmatter;
 
-          if (mode === 'append') {
-            finalContent = this.frontmatterHandler.stringify(
-              mergedFrontmatter,
-              existingNote.content + content
-            );
-          } else if (mode === 'prepend') {
-            finalContent = this.frontmatterHandler.stringify(
-              mergedFrontmatter,
-              content + existingNote.content
-            );
-          }
+          const body = mode === 'append'
+            ? existingNote.content + content
+            : content + existingNote.content;
+
+          finalContent = this.frontmatterHandler.stringify(mergedFrontmatter, body);
+        } else {
+          finalContent = frontmatter
+            ? this.frontmatterHandler.stringify(frontmatter, content)
+            : content;
         }
       }
 
@@ -174,11 +170,12 @@ export class FileSystemService {
       };
     }
 
-    if (!newString) {
+    // Validate newString is not null/undefined (empty string is valid for deletion)
+    if (newString == null) {
       return {
         success: false,
         path,
-        message: 'newString cannot be empty'
+        message: 'newString is required'
       };
     }
 
