@@ -22,6 +22,7 @@ export class CacheService {
 
   /** Start async build. Returns immediately. Await waitForBuild() when needed. */
   startBuild(): void {
+    this.stop();
     this.buildPromise = this.build();
     if (this.refreshIntervalMinutes > 0) {
       this.refreshTimer = setInterval(
@@ -36,6 +37,7 @@ export class CacheService {
   }
 
   async build(): Promise<void> {
+    if (this.building) return;
     this.building = true;
     try {
       const files = await this.findMarkdownFiles(this.vaultPath);
@@ -72,7 +74,7 @@ export class CacheService {
       const cached = this.entries.get(relativePath);
 
       if (!cached || cached.mtime < fileStat.mtime.getTime()) {
-        await this.cacheFilePass1(relativePath, fullPath);
+        await this.cacheFilePass1(relativePath, fullPath, fileStat);
         changed = true;
       }
     }
@@ -115,7 +117,7 @@ export class CacheService {
     return this.entries.get(path);
   }
 
-  getAllEntries(): Map<string, CachedNote> {
+  getAllEntries(): ReadonlyMap<string, CachedNote> {
     return this.entries;
   }
 
@@ -149,10 +151,14 @@ export class CacheService {
   // --- Private ---
 
   /** Pass 1: read file and store with empty outgoingLinks placeholder. */
-  private async cacheFilePass1(relativePath: string, fullPath: string): Promise<void> {
+  private async cacheFilePass1(
+    relativePath: string,
+    fullPath: string,
+    existingStat?: Awaited<ReturnType<typeof stat>>,
+  ): Promise<void> {
     try {
       const content = await readFile(fullPath, 'utf-8');
-      const fileStat = await stat(fullPath);
+      const fileStat = existingStat ?? await stat(fullPath);
       const parsed = matter(content);
 
       this.entries.set(relativePath, {
@@ -188,8 +194,8 @@ export class CacheService {
       }
     }
 
-    // Match [text](link.md) markdown links (only .md files)
-    const mdLinkRegex = /\[([^\]]*)\]\(([^)]+\.md)\)/g;
+    // Match [text](link.md) markdown links (only .md files, not external URLs)
+    const mdLinkRegex = /\[([^\]]*)\]\((?!https?:\/\/)([^)]+\.md)\)/g;
     while ((match = mdLinkRegex.exec(content)) !== null) {
       const target = this.resolveLink(match[2]!, sourcePath);
       if (target && !seen.has(target)) {
@@ -202,8 +208,8 @@ export class CacheService {
   }
 
   private resolveLink(link: string, sourcePath: string): string | null {
-    // Remove .md extension if present, then add it back
-    const cleanLink = link.replace(/\.md$/, '');
+    // Strip heading/block references and .md extension if present, then add it back
+    const cleanLink = link.replace(/#.*$/, '').replace(/\.md$/, '');
 
     // Try exact path match first
     const withMd = cleanLink + '.md';
