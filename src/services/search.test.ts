@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { SearchService } from "./search.js";
-import { PathFilter } from "./pathfilter.js";
+import { PathFilter } from "../pathfilter.js";
 import { writeFile, mkdir, mkdtemp, rm } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";

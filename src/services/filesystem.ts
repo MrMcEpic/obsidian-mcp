@@ -1,10 +1,10 @@
-import { join, resolve, relative, dirname } from 'path';
-import { readdir, stat, readFile, writeFile, unlink, mkdir, access, rename, copyFile } from 'node:fs/promises';
+import { join, resolve, relative, dirname, basename } from 'path';
+import { readdir, stat, readFile, writeFile, unlink, mkdir, access, rename, copyFile, rmdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { FrontmatterHandler } from './frontmatter.js';
-import { PathFilter } from './pathfilter.js';
-import { generateObsidianUri } from './uri.js';
-import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats } from './types.js';
+import { FrontmatterHandler } from '../frontmatter.js';
+import { PathFilter } from '../pathfilter.js';
+import { generateObsidianUri } from '../uri.js';
+import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats, ManageFolderParams, ManageFolderResult, VaultStructureNode } from '../types.js';
 
 export class FileSystemService {
   private frontmatterHandler: FrontmatterHandler;
@@ -37,8 +37,11 @@ export class FileSystemService {
     const fullPath = resolve(join(this.vaultPath, normalizedPath));
 
     // Security check: ensure path is within vault
+    const normalizedFull = fullPath.replace(/\\/g, '/');
+    const normalizedVault = this.vaultPath.replace(/\\/g, '/');
     const relativeToVault = relative(this.vaultPath, fullPath);
-    if (relativeToVault.startsWith('..')) {
+    if (relativeToVault.startsWith('..') ||
+        (!normalizedFull.startsWith(normalizedVault + '/') && normalizedFull !== normalizedVault)) {
       throw new Error(`Path traversal not allowed: ${relativePath}. Paths must be within the vault directory.`);
     }
 
@@ -102,39 +105,32 @@ export class FileSystemService {
       let finalContent: string;
 
       if (mode === 'overwrite') {
-        // Original behavior - replace entire content
         finalContent = frontmatter
           ? this.frontmatterHandler.stringify(frontmatter, content)
           : content;
       } else {
-        // For append/prepend, we need to read existing content
-        let existingNote: ParsedNote;
+        // For append/prepend, read existing content (or treat as overwrite if file doesn't exist)
+        let existingNote: ParsedNote | undefined;
         try {
           existingNote = await this.readNote(path);
-        } catch (error) {
-          // File doesn't exist, treat as overwrite
-          finalContent = frontmatter
-            ? this.frontmatterHandler.stringify(frontmatter, content)
-            : content;
+        } catch {
+          // File doesn't exist — fall through to overwrite
         }
 
-        if (existingNote!) {
-          // Merge frontmatter if provided
+        if (existingNote) {
           const mergedFrontmatter = frontmatter
             ? { ...existingNote.frontmatter, ...frontmatter }
             : existingNote.frontmatter;
 
-          if (mode === 'append') {
-            finalContent = this.frontmatterHandler.stringify(
-              mergedFrontmatter,
-              existingNote.content + content
-            );
-          } else if (mode === 'prepend') {
-            finalContent = this.frontmatterHandler.stringify(
-              mergedFrontmatter,
-              content + existingNote.content
-            );
-          }
+          const body = mode === 'append'
+            ? existingNote.content + content
+            : content + existingNote.content;
+
+          finalContent = this.frontmatterHandler.stringify(mergedFrontmatter, body);
+        } else {
+          finalContent = frontmatter
+            ? this.frontmatterHandler.stringify(frontmatter, content)
+            : content;
         }
       }
 
@@ -174,11 +170,12 @@ export class FileSystemService {
       };
     }
 
-    if (!newString) {
+    // Validate newString is not null/undefined (empty string is valid for deletion)
+    if (newString == null) {
       return {
         success: false,
         path,
-        message: 'newString cannot be empty'
+        message: 'newString is required'
       };
     }
 
@@ -808,6 +805,74 @@ export class FileSystemService {
 
   getVaultPath(): string {
     return this.vaultPath;
+  }
+
+  async manageFolder(params: ManageFolderParams): Promise<ManageFolderResult> {
+    const { path, operation, newPath } = params;
+
+    if (!this.pathFilter.isAllowedForListing(path)) {
+      return { success: false, path, message: `Access denied: ${path}. This path is restricted.` };
+    }
+    if (newPath && !this.pathFilter.isAllowedForListing(newPath)) {
+      return { success: false, path, message: `Access denied: ${newPath}. This path is restricted.` };
+    }
+
+    const fullPath = this.resolvePath(path);
+
+    switch (operation) {
+      case 'create': {
+        await mkdir(fullPath, { recursive: true });
+        return { success: true, path, message: `Created folder: ${path}` };
+      }
+      case 'rename':
+      case 'move': {
+        if (!newPath) throw new Error('newPath is required for rename/move operation');
+        const fullNewPath = this.resolvePath(newPath);
+        await mkdir(dirname(fullNewPath), { recursive: true });
+        await rename(fullPath, fullNewPath);
+        return { success: true, path: newPath, message: `${operation === 'move' ? 'Moved' : 'Renamed'} ${path} → ${newPath}` };
+      }
+      case 'delete': {
+        try {
+          await rmdir(fullPath);
+          return { success: true, path, message: `Deleted folder: ${path}` };
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Unknown error';
+          return { success: false, path, message: `Failed to delete folder: ${msg}` };
+        }
+      }
+      default:
+        throw new Error(`Unknown folder operation: ${operation}`);
+    }
+  }
+
+  async getVaultStructure(subPath: string = '', maxDepth: number = 3): Promise<VaultStructureNode> {
+    const fullPath = subPath ? this.resolvePath(subPath) : resolve(this.vaultPath);
+    return this.buildTree(fullPath, basename(fullPath), 0, maxDepth);
+  }
+
+  private async buildTree(dirPath: string, name: string, depth: number, maxDepth: number): Promise<VaultStructureNode> {
+    if (depth >= maxDepth) {
+      return { name, type: 'directory' };
+    }
+
+    const entries = await readdir(dirPath, { withFileTypes: true });
+    const children: VaultStructureNode[] = [];
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const relativePath = relative(this.vaultPath, join(dirPath, entry.name)).replace(/\\/g, '/');
+
+      if (entry.isDirectory()) {
+        if (!this.pathFilter.isAllowedForListing(relativePath)) continue;
+        children.push(await this.buildTree(join(dirPath, entry.name), entry.name, depth + 1, maxDepth));
+      } else if (entry.isFile()) {
+        if (!this.pathFilter.isAllowed(relativePath)) continue;
+        children.push({ name: entry.name, type: 'file' });
+      }
+    }
+
+    return { name, type: 'directory', children };
   }
 
   async getVaultStats(recentCount: number = 5): Promise<VaultStats> {
