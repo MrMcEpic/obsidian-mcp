@@ -11,7 +11,7 @@ const distDir = join(rootDir, 'dist');
 const mcpbDir = join(distDir, 'mcpb');
 
 async function buildMcpb() {
-  // 1. Bundle with esbuild
+  // 1. Bundle server with esbuild
   mkdirSync(join(mcpbDir, 'server'), { recursive: true });
 
   await build({
@@ -21,7 +21,7 @@ async function buildMcpb() {
     target: 'node18',
     format: 'cjs',
     outfile: join(mcpbDir, 'server', 'mcp-bridge.cjs'),
-    external: [],  // bundle everything
+    external: [],
     minify: false,
     sourcemap: false,
   });
@@ -30,9 +30,25 @@ async function buildMcpb() {
   const manifest = JSON.parse(readFileSync(join(rootDir, 'manifest.json'), 'utf-8'));
   writeFileSync(join(mcpbDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
 
-  // 3. Generate tools.json from the bundled server
-  // (Will be implemented when tools are defined — placeholder for now)
-  writeFileSync(join(mcpbDir, 'server', 'tools.json'), '[]');
+  // 3. Generate tools.json from standalone definitions bundle (NOT the server bundle)
+  await build({
+    entryPoints: [join(distDir, 'tools', 'export-definitions.js')],
+    bundle: true,
+    platform: 'node',
+    target: 'node18',
+    format: 'cjs',
+    outfile: join(distDir, 'tools-definitions.cjs'),
+    external: [],
+    minify: false,
+  });
+
+  // Import definitions from standalone bundle (no server startup)
+  const defsModule = await import('file://' + join(distDir, 'tools-definitions.cjs').replace(/\\/g, '/'));
+  const toolDefinitions = defsModule.allToolDefinitions || defsModule.default?.allToolDefinitions;
+  writeFileSync(
+    join(mcpbDir, 'server', 'tools.json'),
+    JSON.stringify(toolDefinitions, null, 2),
+  );
 
   // 4. Create .mcpb zip
   const output = createWriteStream(join(distDir, 'obsidian-mcp.mcpb'));
