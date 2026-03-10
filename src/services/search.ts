@@ -1,5 +1,5 @@
 import { join, resolve } from 'path';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import type { PathFilter } from '../pathfilter.js';
 import type { ExtendedSearchParams, RankCandidate, SearchParams, SearchResult } from '../types.js';
 import { generateObsidianUri } from '../uri.js';
@@ -63,6 +63,19 @@ export class SearchService {
         }
         return f.relativePath.startsWith(pattern);
       });
+    }
+
+    // Date filter
+    if (extParams.modifiedAfter || extParams.modifiedBefore) {
+      const filtered: typeof allowedFiles = [];
+      for (const f of allowedFiles) {
+        const fileStat = await stat(f.fullPath);
+        const mtime = fileStat.mtime.getTime();
+        if (extParams.modifiedAfter && mtime < new Date(extParams.modifiedAfter).getTime()) continue;
+        if (extParams.modifiedBefore && mtime > new Date(extParams.modifiedBefore).getTime()) continue;
+        filtered.push(f);
+      }
+      allowedFiles = filtered;
     }
 
     // Read files in parallel batches
@@ -220,7 +233,7 @@ export class SearchService {
       }
     }
 
-    const offset = extParams.offset || 0;
+    const offset = extParams.offset ?? 0;
     const scored = this.rerankScored(candidates, scoringTerms, termDocFreq, docCount, totalDocLength);
     return scored.slice(offset, offset + maxLimit).map(s => s.result);
   }
@@ -275,15 +288,4 @@ export class SearchService {
     return scored;
   }
 
-  private rerank(
-    candidates: RankCandidate[],
-    terms: string[],
-    termDocFreq: Map<string, number>,
-    docCount: number,
-    totalDocLength: number,
-    maxLimit: number
-  ): SearchResult[] {
-    const scored = this.rerankScored(candidates, terms, termDocFreq, docCount, totalDocLength);
-    return scored.slice(0, maxLimit).map(s => s.result);
-  }
 }
