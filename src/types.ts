@@ -176,3 +176,16 @@ export interface RestApiNoteResponse {
     size: number;
   };
 }
+
+// Cache types
+export interface CachedNote {
+  content: string;
+  frontmatter: Record<string, any>;
+  mtime: number;
+  outgoingLinks: string[];  // resolved paths
+}
+
+export interface LinkIndex {
+  outgoing: Map<string, string[]>;   // path → [linked paths]
+  backlinks: Map<string, string[]>;  // path → [paths that link here]
+}
