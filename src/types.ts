@@ -189,3 +189,32 @@ export interface LinkIndex {
   outgoing: Map<string, string[]>;   // path → [linked paths]
   backlinks: Map<string, string[]>;  // path → [paths that link here]
 }
+
+// Extended search types
+export interface ExtendedSearchParams extends SearchParams {
+  useRegex?: boolean;
+  pathFilter?: string;       // glob pattern, e.g. "daily/*.md"
+  modifiedAfter?: string;    // ISO date string
+  modifiedBefore?: string;   // ISO date string
+  offset?: number;           // pagination offset
+}
+
+// Folder management types
+export interface ManageFolderParams {
+  path: string;
+  operation: 'create' | 'rename' | 'move' | 'delete';
+  newPath?: string;  // required for 'rename' and 'move'
+}
+
+export interface ManageFolderResult {
+  success: boolean;
+  path: string;
+  message: string;
+}
+
+// Vault structure types
+export interface VaultStructureNode {
+  name: string;
+  type: 'file' | 'directory';
+  children?: VaultStructureNode[];
+}
