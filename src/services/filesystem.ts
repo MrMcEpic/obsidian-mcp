@@ -1,5 +1,5 @@
 import { join, resolve, relative, dirname, basename } from 'path';
-import { readdir, stat, readFile, writeFile, unlink, mkdir, access, rename, copyFile, rm, rmdir } from 'node:fs/promises';
+import { readdir, stat, readFile, writeFile, unlink, mkdir, access, rename, copyFile, rmdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { FrontmatterHandler } from '../frontmatter.js';
 import { PathFilter } from '../pathfilter.js';
@@ -812,6 +812,14 @@ export class FileSystemService {
 
   async manageFolder(params: ManageFolderParams): Promise<ManageFolderResult> {
     const { path, operation, newPath } = params;
+
+    if (!this.pathFilter.isAllowedForListing(path)) {
+      return { success: false, path, message: `Access denied: ${path}. This path is restricted.` };
+    }
+    if (newPath && !this.pathFilter.isAllowedForListing(newPath)) {
+      return { success: false, path, message: `Access denied: ${newPath}. This path is restricted.` };
+    }
+
     const fullPath = this.resolvePath(path);
 
     switch (operation) {
@@ -828,8 +836,13 @@ export class FileSystemService {
         return { success: true, path: newPath, message: `${operation === 'move' ? 'Moved' : 'Renamed'} ${path} → ${newPath}` };
       }
       case 'delete': {
-        await rmdir(fullPath);
-        return { success: true, path, message: `Deleted folder: ${path}` };
+        try {
+          await rmdir(fullPath);
+          return { success: true, path, message: `Deleted folder: ${path}` };
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Unknown error';
+          return { success: false, path, message: `Failed to delete folder: ${msg}` };
+        }
       }
       default:
         throw new Error(`Unknown folder operation: ${operation}`);
@@ -857,6 +870,7 @@ export class FileSystemService {
         if (!this.pathFilter.isAllowedForListing(relativePath)) continue;
         children.push(await this.buildTree(join(dirPath, entry.name), entry.name, depth + 1, maxDepth));
       } else if (entry.isFile()) {
+        if (!this.pathFilter.isAllowed(relativePath)) continue;
         children.push({ name: entry.name, type: 'file' });
       }
     }
