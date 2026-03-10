@@ -8,7 +8,7 @@
   "packageManager": "npm@10.9.0+sha512.65a9c38a8172948f617a53619762cd77e12b9950fe1f9239debcb8d62c652f2081824b986fee7c0af6c0a7df615becebe4bf56e17ec27214a87aa29d9e038b4b",
   "main": "dist/server.js",
   "bin": {
-    "mcp-obsidian": "dist/server.js"
+    "obsidian-mcp": "dist/server.js"
   },
   "files": [
     "dist/**/*",
@@ -18,7 +18,9 @@
   "scripts": {
     "start": "tsx src/server.ts",
     "website": "cd website && bun dev",
-    "build": "tsc --project tsconfig.build.json",
+    "build": "tsc",
+    "bundle": "node scripts/build-mcpb.js",
+    "build:mcpb": "npm run build && npm run bundle",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build && npm test",
@@ -29,10 +31,14 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.0",
+    "axios": "^1.13.6",
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {
+    "@types/archiver": "^7.0.0",
     "@types/node": "^25.3.3",
+    "archiver": "^7.0.1",
+    "esbuild": "^0.27.3",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^4.0.15"

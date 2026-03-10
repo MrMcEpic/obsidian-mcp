@@ -1,0 +1,56 @@
+{
+  "manifest_version": "0.3",
+  "name": "obsidian-mcp",
+  "display_name": "Obsidian Knowledge Base",
+  "version": "1.0.0",
+  "description": "AI-driven knowledge management for Obsidian vaults. 27 tools for notes, search, frontmatter, tags, folders, graph analysis, templates, auto-backlinking, and dataview queries.",
+  "author": {
+    "name": "MrMcEpic"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/mcp-bridge.cjs",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/mcp-bridge.cjs"],
+      "env": {
+        "OBSIDIAN_VAULT_PATH": "${user_config.vault_path}",
+        "OBSIDIAN_API_KEY": "${user_config.api_key}",
+        "OBSIDIAN_API_PORT": "${user_config.api_port}",
+        "OBSIDIAN_CACHE_INTERVAL": "${user_config.cache_interval}"
+      }
+    }
+  },
+  "user_config": {
+    "vault_path": {
+      "type": "string",
+      "title": "Vault Path",
+      "description": "Path to your Obsidian vault",
+      "required": true
+    },
+    "api_key": {
+      "type": "string",
+      "title": "API Key",
+      "description": "API key from Obsidian Local REST API plugin (optional — enables live features)",
+      "required": false
+    },
+    "api_port": {
+      "type": "string",
+      "title": "API Port",
+      "description": "Obsidian Local REST API port",
+      "default": "27123",
+      "required": false
+    },
+    "cache_interval": {
+      "type": "string",
+      "title": "Cache Refresh (minutes)",
+      "description": "How often to refresh vault cache (0 to disable)",
+      "default": "10",
+      "required": false
+    }
+  },
+  "tools": [],
+  "compatibility": {
+    "platforms": ["win32", "darwin", "linux"]
+  }
+}

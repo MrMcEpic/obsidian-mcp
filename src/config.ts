@@ -16,5 +16,5 @@ export function loadConfig(): AppConfig {
     throw new Error('OBSIDIAN_VAULT_PATH environment variable or vault path argument is required');
   }
 
-  return { vaultPath, apiKey, apiPort, cacheInterval };
+  return { vaultPath, ...(apiKey !== undefined ? { apiKey } : {}), apiPort, cacheInterval };
 }

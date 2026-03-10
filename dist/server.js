@@ -2,10 +2,10 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
-import { FileSystemService } from "./src/filesystem.js";
-import { FrontmatterHandler, parseFrontmatter } from "./src/frontmatter.js";
-import { PathFilter } from "./src/pathfilter.js";
-import { SearchService } from "./src/search.js";
+import { FileSystemService } from "./services/filesystem.js";
+import { FrontmatterHandler, parseFrontmatter } from "./frontmatter.js";
+import { PathFilter } from "./pathfilter.js";
+import { SearchService } from "./services/search.js";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
@@ -688,3 +688,4 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 const transport = new StdioServerTransport();
 await server.connect(transport);
+//# sourceMappingURL=server.js.map
