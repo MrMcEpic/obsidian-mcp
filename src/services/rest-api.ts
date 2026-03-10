@@ -4,10 +4,8 @@ import type { RestApiConfig, RestApiNoteResponse } from '../types.js';
 
 export class RestApiService {
   private client: AxiosInstance;
-  private config: RestApiConfig;
 
   constructor(config: RestApiConfig) {
-    this.config = config;
     this.client = axios.create({
       baseURL: config.baseUrl,
       timeout: config.timeout,
