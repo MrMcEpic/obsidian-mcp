@@ -164,10 +164,13 @@ export class DataviewService {
     }
 
     if (sortBy) {
-      const sortField = sortBy;
       results.sort((a, b) => {
-        const aVal = getNestedValue(a.frontmatter, sortField);
-        const bVal = getNestedValue(b.frontmatter, sortField);
+        const aVal = getNestedValue(a.frontmatter, sortBy);
+        const bVal = getNestedValue(b.frontmatter, sortBy);
+        // Sort undefined/null values last
+        if (aVal == null && bVal == null) return 0;
+        if (aVal == null) return 1;
+        if (bVal == null) return -1;
         const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
         return sortOrder === 'desc' ? -cmp : cmp;
       });
