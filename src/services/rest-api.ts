@@ -1,11 +1,17 @@
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
+import https from 'node:https';
 import type { RestApiConfig, RestApiNoteResponse } from '../types.js';
 
 export class RestApiService {
   private client: AxiosInstance;
 
   constructor(config: RestApiConfig) {
+    // Obsidian Local REST API uses a self-signed certificate for HTTPS
+    const httpsAgent = config.baseUrl.startsWith('https')
+      ? new https.Agent({ rejectUnauthorized: false })
+      : undefined;
+
     this.client = axios.create({
       baseURL: config.baseUrl,
       timeout: config.timeout,
@@ -13,6 +19,7 @@ export class RestApiService {
         'Authorization': `Bearer ${config.apiKey}`,
         'Content-Type': 'application/json',
       },
+      ...(httpsAgent ? { httpsAgent } : {}),
     });
   }
 

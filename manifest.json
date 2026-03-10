@@ -38,7 +38,7 @@
       "type": "string",
       "title": "API Port",
       "description": "Obsidian Local REST API port",
-      "default": "27123",
+      "default": "27124",
       "required": false
     },
     "cache_interval": {

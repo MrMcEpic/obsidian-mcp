@@ -25,7 +25,7 @@ const pathFilter = new PathFilter();
 const frontmatterHandler = new FrontmatterHandler();
 const filesystem = new FileSystemService(vaultPath, pathFilter, frontmatterHandler);
 const restApi = config.apiKey
-  ? new RestApiService({ baseUrl: `http://127.0.0.1:${config.apiPort}`, apiKey: config.apiKey, timeout: 5000 })
+  ? new RestApiService({ baseUrl: `https://127.0.0.1:${config.apiPort}`, apiKey: config.apiKey, timeout: 5000 })
   : null;
 const vaultAccess = new VaultAccess(filesystem, restApi);
 const searchService = new SearchService(vaultPath, pathFilter);
