@@ -159,3 +159,20 @@ export interface VaultStats {
     modified: number;  // timestamp
   }>;
 }
+
+// REST API types
+export interface RestApiConfig {
+  baseUrl: string;
+  apiKey: string;
+  timeout: number; // ms
+}
+
+export interface RestApiNoteResponse {
+  content: string;
+  path: string;
+  stat?: {
+    ctime: number;
+    mtime: number;
+    size: number;
+  };
+}
