@@ -6,10 +6,10 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { FileSystemService } from "./src/filesystem.js";
-import { FrontmatterHandler, parseFrontmatter } from "./src/frontmatter.js";
-import { PathFilter } from "./src/pathfilter.js";
-import { SearchService } from "./src/search.js";
+import { FileSystemService } from "./services/filesystem.js";
+import { FrontmatterHandler, parseFrontmatter } from "./frontmatter.js";
+import { PathFilter } from "./pathfilter.js";
+import { SearchService } from "./services/search.js";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";

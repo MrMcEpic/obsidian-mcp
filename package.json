@@ -16,7 +16,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "start": "tsx server.ts",
+    "start": "tsx src/server.ts",
     "website": "cd website && bun dev",
     "build": "tsc --project tsconfig.build.json",
     "test": "vitest run",

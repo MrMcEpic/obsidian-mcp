@@ -1,7 +1,7 @@
 import { test, expect, beforeEach, afterEach, describe } from "vitest";
 import { FileSystemService } from "./filesystem.js";
-import { FrontmatterHandler } from "./frontmatter.js";
-import { PathFilter } from "./pathfilter.js";
+import { FrontmatterHandler } from "../frontmatter.js";
+import { PathFilter } from "../pathfilter.js";
 import { SearchService } from "./search.js";
 import { writeFile, mkdir, mkdtemp, rm } from "fs/promises";
 import { join } from "path";

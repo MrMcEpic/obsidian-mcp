@@ -1,10 +1,10 @@
 import { join, resolve, relative, dirname } from 'path';
 import { readdir, stat, readFile, writeFile, unlink, mkdir, access, rename, copyFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { FrontmatterHandler } from './frontmatter.js';
-import { PathFilter } from './pathfilter.js';
-import { generateObsidianUri } from './uri.js';
-import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats } from './types.js';
+import { FrontmatterHandler } from '../frontmatter.js';
+import { PathFilter } from '../pathfilter.js';
+import { generateObsidianUri } from '../uri.js';
+import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats } from '../types.js';
 
 export class FileSystemService {
   private frontmatterHandler: FrontmatterHandler;
