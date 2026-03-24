@@ -9,6 +9,7 @@ import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, D
 export class FileSystemService {
   private frontmatterHandler: FrontmatterHandler;
   private pathFilter: PathFilter;
+  private _realVaultPath: string | null = null;
 
   constructor(
     private vaultPath: string,
@@ -20,6 +21,22 @@ export class FileSystemService {
     this.frontmatterHandler = frontmatterHandler || new FrontmatterHandler();
   }
 
+  private async getRealVaultPath(): Promise<string> {
+    if (!this._realVaultPath) {
+      this._realVaultPath = await realpath(this.vaultPath);
+    }
+    return this._realVaultPath;
+  }
+
+  private isWithinBoundary(childPath: string, parentPath: string): boolean {
+    const normalizedChild = childPath.replace(/\\/g, '/');
+    const normalizedParent = parentPath.replace(/\\/g, '/');
+    const rel = relative(parentPath, childPath);
+    return !rel.startsWith('..') &&
+      (normalizedChild.startsWith(normalizedParent + '/') || normalizedChild === normalizedParent);
+  }
+
+  // Two-phase path resolution: lexical boundary check, then symlink resolution + re-check
   private async resolvePath(relativePath: string): Promise<string> {
     if (!relativePath) {
       relativePath = '';
@@ -30,24 +47,16 @@ export class FileSystemService {
       : relativePath;
     const fullPath = resolve(join(this.vaultPath, normalizedPath));
 
-    // Initial boundary check (before symlink resolution)
-    const normalizedFull = fullPath.replace(/\\/g, '/');
-    const normalizedVault = this.vaultPath.replace(/\\/g, '/');
-    const relativeToVault = relative(this.vaultPath, fullPath);
-    if (relativeToVault.startsWith('..') ||
-        (!normalizedFull.startsWith(normalizedVault + '/') && normalizedFull !== normalizedVault)) {
+    // Phase 1: Lexical boundary check (before symlink resolution)
+    if (!this.isWithinBoundary(fullPath, this.vaultPath)) {
       throw new Error(`Path traversal not allowed: ${relativePath}. Paths must be within the vault directory.`);
     }
 
-    // Resolve symlinks and re-check boundary
+    // Phase 2: Resolve symlinks and re-check boundary
     try {
       const realFullPath = await realpath(fullPath);
-      const realVaultPath = await realpath(this.vaultPath);
-      const realNormalizedFull = realFullPath.replace(/\\/g, '/');
-      const realNormalizedVault = realVaultPath.replace(/\\/g, '/');
-      const realRelative = relative(realVaultPath, realFullPath);
-      if (realRelative.startsWith('..') ||
-          (!realNormalizedFull.startsWith(realNormalizedVault + '/') && realNormalizedFull !== realNormalizedVault)) {
+      const realVaultPath = await this.getRealVaultPath();
+      if (!this.isWithinBoundary(realFullPath, realVaultPath)) {
         throw new Error(`Symlink target is outside the vault: ${relativePath}. Symlinks must resolve to paths within the vault directory.`);
       }
       return realFullPath;
@@ -57,8 +66,20 @@ export class FileSystemService {
         throw new Error(`Circular symlink detected: ${relativePath}. The path contains a symlink loop.`);
       }
       if (error.code === 'ENOENT') {
-        // File doesn't exist yet (e.g., write_note creating new file) - return the unresolved path
-        return fullPath;
+        // File doesn't exist yet — resolve parent directory to check for symlink escapes
+        const parentDir = dirname(fullPath);
+        try {
+          const realParent = await realpath(parentDir);
+          const realVaultPath = await this.getRealVaultPath();
+          if (!this.isWithinBoundary(realParent, realVaultPath)) {
+            throw new Error(`Symlink target is outside the vault: ${relativePath}. Symlinks must resolve to paths within the vault directory.`);
+          }
+          return join(realParent, basename(fullPath));
+        } catch (parentError: any) {
+          if (parentError.message?.includes('Symlink target')) throw parentError;
+          // Parent also doesn't exist (deeply nested new path) — lexical check already passed
+          return fullPath;
+        }
       }
       if (error.code === 'EACCES') {
         throw new Error(`Permission denied: ${relativePath}. Cannot resolve symlink due to filesystem permissions.`);

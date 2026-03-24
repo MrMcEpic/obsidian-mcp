@@ -1232,7 +1232,13 @@ describe('FileSystemService symlink safety', () => {
 
   test('blocks symlinks that escape the vault', async () => {
     await symlink(outsideDir, join(vaultDir, 'escape-link'), 'junction');
-    await expect(fs.readNote('escape-link/secret.md')).rejects.toThrow(/symlink.*outside.*vault|Path traversal/i);
+    await expect(fs.readNote('escape-link/secret.md')).rejects.toThrow(/symlink.*outside.*vault/i);
+  });
+
+  test('blocks writes through symlinks that escape the vault', async () => {
+    await symlink(outsideDir, join(vaultDir, 'escape-link'), 'junction');
+    await expect(fs.writeNote({ path: 'escape-link/evil.md', content: 'pwned' }))
+      .rejects.toThrow(/symlink.*outside.*vault/i);
   });
 
   test('allows symlinks that stay within the vault', async () => {
@@ -1244,7 +1250,6 @@ describe('FileSystemService symlink safety', () => {
   });
 
   test('handles non-existent paths gracefully (for write operations)', async () => {
-    // writeNote should still work for new files (ENOENT path in resolvePath)
     await fs.writeNote({ path: 'new-note.md', content: '# New' });
     const note = await fs.readNote('new-note.md');
     expect(note.content).toBe('# New');
