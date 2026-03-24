@@ -160,14 +160,29 @@ export const handlers: Record<string, ToolHandler> = {
       const flags = (caseSensitive ? '' : 'i') + (replaceAll ? 'g' : '');
       const escaped = useRegex ? oldString : oldString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const pattern = wholeWord ? `\\b${escaped}\\b` : escaped;
-      const regex = new RegExp(pattern, flags);
       const original = note.originalContent;
-      const patched = original.replace(regex, newString);
-      if (patched === original) {
+
+      // Count matches before replacing (always use 'g' flag for counting)
+      const countRegex = new RegExp(pattern, flags.replace('g', '') + 'g');
+      const matchCount = (original.match(countRegex) || []).length;
+
+      if (matchCount === 0) {
         return error(`No matches found for "${oldString}" in ${path}`);
       }
+
+      if (!replaceAll && matchCount > 1) {
+        return error(
+          `Found ${matchCount} occurrences of the pattern. Use replaceAll=true to replace all, or provide a more specific pattern to match exactly one occurrence.`
+        );
+      }
+
+      const regex = new RegExp(pattern, flags);
+      const patched = original.replace(regex, newString);
       await ctx.vaultAccess.patchNote({ path, oldString: original, newString: patched });
-      return success({ path, message: 'Patched successfully' });
+
+      const updatedNote = await ctx.vaultAccess.readNote(path);
+      await ctx.cacheService.updateEntry(path, updatedNote.originalContent);
+      return success({ path, message: `Patched successfully (${replaceAll ? matchCount : 1} occurrence${matchCount > 1 ? 's' : ''})` });
     }
 
     const result = await ctx.vaultAccess.patchNote({ path, oldString, newString, replaceAll: replaceAll ?? false });
