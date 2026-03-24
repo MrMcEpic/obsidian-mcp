@@ -36,9 +36,9 @@ describe('E2E Integration', () => {
     };
   });
 
-  it('registers all 27 tools', () => {
-    expect(allToolDefinitions.length).toBe(27);
-    expect(Object.keys(allToolHandlers).length).toBe(27);
+  it('registers all 28 tools', () => {
+    expect(allToolDefinitions.length).toBe(28);
+    expect(Object.keys(allToolHandlers).length).toBe(28);
   });
 
   it('read → cache → graph pipeline works', async () => {

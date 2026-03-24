@@ -48,6 +48,14 @@ export const definitions = [
       required: ['paths'],
     },
   },
+  {
+    name: 'list_all_tags',
+    description: 'Scan the entire vault for all tags (frontmatter and inline #hashtags), returning deduplicated list sorted by frequency',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
 
 export const handlers: Record<string, ToolHandler> = {
@@ -88,5 +96,10 @@ export const handlers: Record<string, ToolHandler> = {
     const { paths } = args as { paths: string[] };
     const info = await ctx.filesystem.getNotesInfo(paths);
     return success(info);
+  },
+
+  async list_all_tags(_args, ctx) {
+    const tags = await ctx.filesystem.listAllTags();
+    return success({ totalTags: tags.length, tags });
   },
 };

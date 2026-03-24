@@ -4,7 +4,7 @@ import { constants } from 'node:fs';
 import { FrontmatterHandler } from '../frontmatter.js';
 import { PathFilter } from '../pathfilter.js';
 import { generateObsidianUri } from '../uri.js';
-import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats, ManageFolderParams, ManageFolderResult, VaultStructureNode } from '../types.js';
+import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats, ManageFolderParams, ManageFolderResult, VaultStructureNode, TagInfo } from '../types.js';
 
 export class FileSystemService {
   private frontmatterHandler: FrontmatterHandler;
@@ -841,6 +841,57 @@ export class FileSystemService {
         message: error instanceof Error ? error.message : 'Unknown error'
       };
     }
+  }
+
+  async listAllTags(): Promise<TagInfo[]> {
+    const tagCounts = new Map<string, number>();
+
+    const scanDirectory = async (dirPath: string, relativePath: string = ''): Promise<void> => {
+      const entries = await readdir(dirPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+        const fullEntryPath = join(dirPath, entry.name);
+
+        if (entry.isDirectory()) {
+          if (!this.pathFilter.isAllowedForListing(entryRelativePath)) continue;
+          await scanDirectory(fullEntryPath, entryRelativePath);
+        } else if (entry.isFile()) {
+          if (!this.pathFilter.isAllowed(entryRelativePath)) continue;
+
+          try {
+            const content = await readFile(fullEntryPath, 'utf-8');
+            const parsed = this.frontmatterHandler.parse(content);
+
+            // Extract frontmatter tags
+            if (parsed.frontmatter.tags) {
+              const fmTags = Array.isArray(parsed.frontmatter.tags)
+                ? parsed.frontmatter.tags
+                : [parsed.frontmatter.tags];
+              for (const tag of fmTags) {
+                const t = String(tag).toLowerCase();
+                tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
+              }
+            }
+
+            // Extract inline #hashtags from content
+            const inlineMatches = parsed.content.match(/#[a-zA-Z][a-zA-Z0-9_/-]*/g) || [];
+            for (const match of inlineMatches) {
+              const t = match.slice(1).toLowerCase(); // Remove #
+              tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
+            }
+          } catch {
+            // Skip files that can't be parsed
+          }
+        }
+      }
+    };
+
+    await scanDirectory(this.vaultPath);
+
+    return Array.from(tagCounts.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count);
   }
 
   getVaultPath(): string {

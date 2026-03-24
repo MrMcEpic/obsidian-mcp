@@ -218,3 +218,9 @@ export interface VaultStructureNode {
   type: 'file' | 'directory';
   children?: VaultStructureNode[];
 }
+
+// Tag discovery types
+export interface TagInfo {
+  tag: string;
+  count: number;
+}
