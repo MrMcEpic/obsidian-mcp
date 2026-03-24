@@ -6,6 +6,9 @@ import { PathFilter } from '../pathfilter.js';
 import { generateObsidianUri } from '../uri.js';
 import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats, ManageFolderParams, ManageFolderResult, VaultStructureNode, TagInfo } from '../types.js';
 
+/** Matches inline #hashtags: must start with a letter, supports nested tags (e.g. #project/work) */
+const INLINE_TAG_REGEX = /#[a-zA-Z][a-zA-Z0-9_/-]*/g;
+
 export class FileSystemService {
   private frontmatterHandler: FrontmatterHandler;
   private pathFilter: PathFilter;
@@ -779,8 +782,8 @@ export class FileSystemService {
         }
       }
 
-      // Also extract inline tags from content
-      const inlineTagMatches = note.content.match(/#[a-zA-Z0-9_-]+/g) || [];
+      // Also extract inline tags from content (must start with letter, supports nested tags with /)
+      const inlineTagMatches = note.content.match(INLINE_TAG_REGEX) || [];
       const inlineTags = inlineTagMatches.map(tag => tag.slice(1)); // Remove #
       currentTags = [...new Set([...currentTags, ...inlineTags])]; // Deduplicate
 
@@ -875,7 +878,7 @@ export class FileSystemService {
             }
 
             // Extract inline #hashtags from content
-            const inlineMatches = parsed.content.match(/#[a-zA-Z][a-zA-Z0-9_/-]*/g) || [];
+            const inlineMatches = parsed.content.match(INLINE_TAG_REGEX) || [];
             for (const match of inlineMatches) {
               const t = match.slice(1).toLowerCase(); // Remove #
               tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
