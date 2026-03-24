@@ -1,7 +1,7 @@
-import { test, expect, beforeEach, afterEach } from "vitest";
+import { test, expect, describe, beforeEach, afterEach } from "vitest";
 import { FileSystemService } from "./filesystem.js";
 import { PathFilter } from "../pathfilter.js";
-import { writeFile, readFile, mkdir, mkdtemp, rm } from "fs/promises";
+import { writeFile, readFile, mkdir, mkdtemp, rm, symlink } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 
@@ -1200,4 +1200,53 @@ test("error messages include remediation suggestions for access denied", async (
 test("error messages include remediation suggestions for path traversal", async () => {
   await expect(fileSystem.readNote("../outside.md"))
     .rejects.toThrow(/within the vault/);
+});
+
+// ============================================================================
+// SYMLINK SAFETY TESTS
+// ============================================================================
+
+describe('FileSystemService symlink safety', () => {
+  let vaultDir: string;
+  let outsideDir: string;
+  let fs: FileSystemService;
+
+  beforeEach(async () => {
+    vaultDir = await mkdtemp(join(tmpdir(), 'vault-'));
+    outsideDir = await mkdtemp(join(tmpdir(), 'outside-'));
+    fs = new FileSystemService(vaultDir);
+
+    await writeFile(join(vaultDir, 'note.md'), '# Hello');
+    await writeFile(join(outsideDir, 'secret.md'), '# Secret');
+  });
+
+  afterEach(async () => {
+    await rm(vaultDir, { recursive: true, force: true });
+    await rm(outsideDir, { recursive: true, force: true });
+  });
+
+  test('reads normal files successfully', async () => {
+    const note = await fs.readNote('note.md');
+    expect(note.content).toBe('# Hello');
+  });
+
+  test('blocks symlinks that escape the vault', async () => {
+    await symlink(outsideDir, join(vaultDir, 'escape-link'), 'junction');
+    await expect(fs.readNote('escape-link/secret.md')).rejects.toThrow(/symlink.*outside.*vault|Path traversal/i);
+  });
+
+  test('allows symlinks that stay within the vault', async () => {
+    await mkdir(join(vaultDir, 'subdir'));
+    await writeFile(join(vaultDir, 'subdir/target.md'), '# Target');
+    await symlink(join(vaultDir, 'subdir'), join(vaultDir, 'internal-link'), 'junction');
+    const note = await fs.readNote('internal-link/target.md');
+    expect(note.content).toBe('# Target');
+  });
+
+  test('handles non-existent paths gracefully (for write operations)', async () => {
+    // writeNote should still work for new files (ENOENT path in resolvePath)
+    await fs.writeNote({ path: 'new-note.md', content: '# New' });
+    const note = await fs.readNote('new-note.md');
+    expect(note.content).toBe('# New');
+  });
 });

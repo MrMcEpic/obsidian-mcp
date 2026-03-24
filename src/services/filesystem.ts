@@ -1,5 +1,5 @@
 import { join, resolve, relative, dirname, basename } from 'path';
-import { readdir, stat, readFile, writeFile, unlink, mkdir, access, rename, copyFile, rmdir } from 'node:fs/promises';
+import { readdir, stat, readFile, writeFile, unlink, mkdir, access, rename, copyFile, rmdir, realpath } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { FrontmatterHandler } from '../frontmatter.js';
 import { PathFilter } from '../pathfilter.js';
@@ -20,23 +20,17 @@ export class FileSystemService {
     this.frontmatterHandler = frontmatterHandler || new FrontmatterHandler();
   }
 
-  private resolvePath(relativePath: string): string {
-    // Handle undefined or null path
+  private async resolvePath(relativePath: string): Promise<string> {
     if (!relativePath) {
       relativePath = '';
     }
-
-    // Trim whitespace from path
     relativePath = relativePath.trim();
-
-    // Normalize and resolve the path within the vault
     const normalizedPath = relativePath.startsWith('/')
       ? relativePath.slice(1)
       : relativePath;
-
     const fullPath = resolve(join(this.vaultPath, normalizedPath));
 
-    // Security check: ensure path is within vault
+    // Initial boundary check (before symlink resolution)
     const normalizedFull = fullPath.replace(/\\/g, '/');
     const normalizedVault = this.vaultPath.replace(/\\/g, '/');
     const relativeToVault = relative(this.vaultPath, fullPath);
@@ -45,11 +39,36 @@ export class FileSystemService {
       throw new Error(`Path traversal not allowed: ${relativePath}. Paths must be within the vault directory.`);
     }
 
-    return fullPath;
+    // Resolve symlinks and re-check boundary
+    try {
+      const realFullPath = await realpath(fullPath);
+      const realVaultPath = await realpath(this.vaultPath);
+      const realNormalizedFull = realFullPath.replace(/\\/g, '/');
+      const realNormalizedVault = realVaultPath.replace(/\\/g, '/');
+      const realRelative = relative(realVaultPath, realFullPath);
+      if (realRelative.startsWith('..') ||
+          (!realNormalizedFull.startsWith(realNormalizedVault + '/') && realNormalizedFull !== realNormalizedVault)) {
+        throw new Error(`Symlink target is outside the vault: ${relativePath}. Symlinks must resolve to paths within the vault directory.`);
+      }
+      return realFullPath;
+    } catch (error: any) {
+      if (error.message?.includes('Symlink target')) throw error;
+      if (error.code === 'ELOOP') {
+        throw new Error(`Circular symlink detected: ${relativePath}. The path contains a symlink loop.`);
+      }
+      if (error.code === 'ENOENT') {
+        // File doesn't exist yet (e.g., write_note creating new file) - return the unresolved path
+        return fullPath;
+      }
+      if (error.code === 'EACCES') {
+        throw new Error(`Permission denied: ${relativePath}. Cannot resolve symlink due to filesystem permissions.`);
+      }
+      throw error;
+    }
   }
 
   async readNote(path: string): Promise<ParsedNote> {
-    const fullPath = this.resolvePath(path);
+    const fullPath = await this.resolvePath(path);
 
     if (!this.pathFilter.isAllowed(path)) {
       throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
@@ -82,7 +101,7 @@ export class FileSystemService {
 
   async writeNote(params: NoteWriteParams): Promise<void> {
     const { path, content, frontmatter, mode = 'overwrite' } = params;
-    const fullPath = this.resolvePath(path);
+    const fullPath = await this.resolvePath(path);
 
     if (!this.pathFilter.isAllowed(path)) {
       throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
@@ -223,7 +242,7 @@ export class FileSystemService {
         : fullContent.replace(oldString, newString);
 
       // Write the updated content
-      const fullPath = this.resolvePath(path);
+      const fullPath = await this.resolvePath(path);
       await writeFile(fullPath, updatedContent, 'utf-8');
 
       return {
@@ -245,7 +264,7 @@ export class FileSystemService {
   async listDirectory(path: string = ''): Promise<DirectoryListing> {
     // Normalize path: treat '.' as root directory
     const normalizedPath = path === '.' ? '' : path;
-    const fullPath = this.resolvePath(normalizedPath);
+    const fullPath = await this.resolvePath(normalizedPath);
 
     try {
       const entries = await readdir(fullPath, { withFileTypes: true });
@@ -288,7 +307,7 @@ export class FileSystemService {
   }
 
   async exists(path: string): Promise<boolean> {
-    const fullPath = this.resolvePath(path);
+    const fullPath = await this.resolvePath(path);
 
     if (!this.pathFilter.isAllowed(path)) {
       return false;
@@ -303,7 +322,7 @@ export class FileSystemService {
   }
 
   async isDirectory(path: string): Promise<boolean> {
-    const fullPath = this.resolvePath(path);
+    const fullPath = await this.resolvePath(path);
 
     if (!this.pathFilter.isAllowed(path)) {
       return false;
@@ -329,7 +348,7 @@ export class FileSystemService {
       };
     }
 
-    const fullPath = this.resolvePath(path);
+    const fullPath = await this.resolvePath(path);
 
     if (!this.pathFilter.isAllowed(path)) {
       return {
@@ -405,8 +424,8 @@ export class FileSystemService {
       };
     }
 
-    const oldFullPath = this.resolvePath(oldPath);
-    const newFullPath = this.resolvePath(newPath);
+    const oldFullPath = await this.resolvePath(oldPath);
+    const newFullPath = await this.resolvePath(newPath);
 
     try {
       // Read source content (will throw ENOENT if not found)
@@ -498,8 +517,8 @@ export class FileSystemService {
       };
     }
 
-    const oldFullPath = this.resolvePath(oldPath);
-    const newFullPath = this.resolvePath(newPath);
+    const oldFullPath = await this.resolvePath(oldPath);
+    const newFullPath = await this.resolvePath(newPath);
 
     try {
       const sourceStat = await stat(oldFullPath);
@@ -677,7 +696,7 @@ export class FileSystemService {
           throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
         }
 
-        const fullPath = this.resolvePath(path);
+        const fullPath = await this.resolvePath(path);
 
         let stats;
         try {
@@ -817,7 +836,7 @@ export class FileSystemService {
       return { success: false, path, message: `Access denied: ${newPath}. This path is restricted.` };
     }
 
-    const fullPath = this.resolvePath(path);
+    const fullPath = await this.resolvePath(path);
 
     switch (operation) {
       case 'create': {
@@ -827,7 +846,7 @@ export class FileSystemService {
       case 'rename':
       case 'move': {
         if (!newPath) throw new Error('newPath is required for rename/move operation');
-        const fullNewPath = this.resolvePath(newPath);
+        const fullNewPath = await this.resolvePath(newPath);
         await mkdir(dirname(fullNewPath), { recursive: true });
         await rename(fullPath, fullNewPath);
         return { success: true, path: newPath, message: `${operation === 'move' ? 'Moved' : 'Renamed'} ${path} → ${newPath}` };
@@ -847,7 +866,7 @@ export class FileSystemService {
   }
 
   async getVaultStructure(subPath: string = '', maxDepth: number = 3): Promise<VaultStructureNode> {
-    const fullPath = subPath ? this.resolvePath(subPath) : resolve(this.vaultPath);
+    const fullPath = subPath ? await this.resolvePath(subPath) : resolve(this.vaultPath);
     return this.buildTree(fullPath, basename(fullPath), 0, maxDepth);
   }
 
