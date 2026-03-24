@@ -155,6 +155,10 @@ export const handlers: Record<string, ToolHandler> = {
       replaceAll?: boolean; useRegex?: boolean; caseSensitive?: boolean; wholeWord?: boolean;
     };
 
+    if (!oldString || oldString.trim() === '') {
+      return error('oldString cannot be empty');
+    }
+
     if (useRegex || !caseSensitive || wholeWord) {
       const note = await ctx.vaultAccess.readNote(path);
       const flags = (caseSensitive ? '' : 'i') + (replaceAll ? 'g' : '');
@@ -182,7 +186,8 @@ export const handlers: Record<string, ToolHandler> = {
 
       const updatedNote = await ctx.vaultAccess.readNote(path);
       await ctx.cacheService.updateEntry(path, updatedNote.originalContent);
-      return success({ path, message: `Patched successfully (${replaceAll ? matchCount : 1} occurrence${matchCount > 1 ? 's' : ''})` });
+      const replaced = replaceAll ? matchCount : 1;
+      return success({ path, message: `Patched successfully (${replaced} occurrence${replaced > 1 ? 's' : ''})` });
     }
 
     const result = await ctx.vaultAccess.patchNote({ path, oldString, newString, replaceAll: replaceAll ?? false });
